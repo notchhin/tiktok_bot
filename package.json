@@ -1,13 +1,14 @@
 {
   "name": "tiktok-telegram-bot",
   "version": "1.0.0",
-  "description": "Telegram group bot that grabs TikTok links, downloads the video, and reposts it with the sender's username as caption.",
+  "description": "Bot that grabs TikTok links, downloads the video, and reposts it with the sender's username as caption. Runs on Telegram and/or Discord.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
+    "discord.js": "^14.27.0",
     "dotenv": "^16.4.5",
     "node-telegram-bot-api": "^0.66.0"
   }

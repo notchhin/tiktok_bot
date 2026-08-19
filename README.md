@@ -1,8 +1,9 @@
-# TikTok Telegram Bot
+# TikTok Bot (Telegram + Discord)
 
-A Telegram group bot that detects TikTok links in chat messages, downloads the
-video (without watermark when possible), and reposts it to the group with the
-original sender's `@username` as the caption.
+A bot that detects TikTok links in chat messages, downloads the video (without
+watermark when possible), and reposts it with the original sender's username as
+the caption. Works on **Telegram** and/or **Discord**. On Discord it only reacts
+in one specific channel (configured by `DISCORD_CHANNEL_ID`).
 
 ## Setup
 
@@ -36,6 +37,21 @@ original sender's `@username` as the caption.
    ```bash
    npm start
    ```
+
+## Discord (optional)
+
+1. Create an application/bot at
+   [discord.com/developers/applications](https://discord.com/developers/applications),
+   then copy the token from the **Bot** tab into `DISCORD_BOT_TOKEN`.
+2. In the same **Bot** tab, enable the **Message Content** privileged intent
+   (required so the bot can read message text).
+3. Invite the bot to your server with the `Send Messages`, `Manage Messages`
+   (to delete the trigger link up front) and `Attach Files` scopes.
+4. Right-click the channel you want the bot to monitor → **Copy Channel ID**,
+   and paste it into `DISCORD_CHANNEL_ID` in `.env`. The bot ignores every other
+   channel and direct message.
+5. Both Telegram and Discord can run at the same time — set whichever tokens you
+   need; leave the Discord ones blank to disable Discord.
 
 ## Deploy on Ubuntu (systemd)
 
