@@ -24,7 +24,7 @@ bot.on('text', async (msg) => {
 
   const url = match[0].startsWith('http') ? match[0] : 'https://' + match[0];
   const sender = msg.from && msg.from.username
-    ? '@' + msg.from.username
+    ? 'Send by: ' + msg.from.username
     : (msg.from && msg.from.first_name) || 'someone';
 
   const chatId = msg.chat.id;
