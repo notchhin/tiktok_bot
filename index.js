@@ -93,15 +93,26 @@ if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CHANNEL_ID) {
     ],
   });
 
+  // Discord caps bot uploads at 25 MB (Telegram allows up to 2 GB), so larger
+  // videos get a 413 "Request entity too large". Catch that up front.
+  const DISCORD_MAX_BYTES = 25 * 1024 * 1024;
+
   const discordCtx = {
     sendText: (channel, text) => channel.send(text),
     deleteText: (msg) => msg.delete().catch(() => {}),
     deleteMessage: (msg) => msg.delete().catch(() => {}),
-    replyFile: (channel, file, opts) =>
-      channel.send({
+    replyFile: async (channel, file, opts) => {
+      const { size } = await fs.stat(file);
+      if (size > DISCORD_MAX_BYTES) {
+        await channel.send('❌ This TikTok is too large to upload on Discord ' +
+          `(limit ${Math.round(DISCORD_MAX_BYTES / 1024 / 1024)} MB).`);
+        return;
+      }
+      await channel.send({
         files: [{ attachment: file, name: 'tiktok.mp4' }],
         content: opts.caption || '',
-      }),
+      });
+    },
   };
 
   client.on('messageCreate', async (message) => {
