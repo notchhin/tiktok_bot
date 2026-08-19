@@ -54,7 +54,9 @@ async function downloadViaTikwm(url) {
 
   const outPath = path.join(os.tmpdir(), `tiktok_${Date.now()}.mp4`);
   await streamVideo(videoUrl, outPath);
-  return outPath;
+  // Return the source URL too — callers can share it directly when the file
+  // is too large to upload (e.g. Discord's 25 MB bot cap).
+  return { file: outPath, playUrl: videoUrl };
 }
 
 async function downloadTikTok(url) {

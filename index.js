@@ -29,10 +29,10 @@ async function handleTikTok(ctx, channel, trigger, text, senderName) {
   if (trigger) await ctx.deleteMessage(trigger).catch(() => {});
 
   try {
-    const file = await downloadTikTok(url);
+    const { file, playUrl } = await downloadTikTok(url);
     const { size } = await fs.stat(file);
     const opts = { caption: senderName };
-    await ctx.replyFile(channel, file, opts, size > MAX_VIDEO_BYTES);
+    await ctx.replyFile(channel, file, opts, size > MAX_VIDEO_BYTES, playUrl);
     await fs.unlink(file).catch(() => {});
   } catch (err) {
     console.error('Download failed:', err && err.message);
@@ -94,18 +94,28 @@ if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CHANNEL_ID) {
   });
 
   // Discord caps bot uploads at 25 MB (Telegram allows up to 2 GB), so larger
-  // videos get a 413 "Request entity too large". Catch that up front.
+  // videos get a 413 "Request entity too large". When that happens, share the
+  // direct tikwm URL instead — Discord embeds direct .mp4 links as a video.
   const DISCORD_MAX_BYTES = 25 * 1024 * 1024;
+
+  const sendTooLarge = async (channel, caption, playUrl) => {
+    const head = caption ? caption + '\n' : '';
+    if (playUrl) {
+      await channel.send(head + '🔗 Too large for Discord — watch here: ' + playUrl);
+    } else {
+      await channel.send(head + '❌ This TikTok is too large to upload on Discord ' +
+        `(limit ${Math.round(DISCORD_MAX_BYTES / 1024 / 1024)} MB).`);
+    }
+  };
 
   const discordCtx = {
     sendText: (channel, text) => channel.send(text),
     deleteText: (msg) => msg.delete().catch(() => {}),
     deleteMessage: (msg) => msg.delete().catch(() => {}),
-    replyFile: async (channel, file, opts) => {
+    replyFile: async (channel, file, opts, isLarge, playUrl) => {
       const { size } = await fs.stat(file);
       if (size > DISCORD_MAX_BYTES) {
-        await channel.send('❌ This TikTok is too large to upload on Discord ' +
-          `(limit ${Math.round(DISCORD_MAX_BYTES / 1024 / 1024)} MB).`);
+        await sendTooLarge(channel, opts.caption, playUrl);
         return;
       }
       try {
@@ -114,11 +124,10 @@ if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CHANNEL_ID) {
           content: opts.caption || '',
         });
       } catch (err) {
-        // Discord rejects oversized uploads with a bare 413; surface a clear
-        // message instead of an uncaught "Download failed".
+        // Discord rejects oversized uploads with a bare 413; share the link
+        // instead of surfacing an uncaught "Download failed".
         if (/entity too large|413/i.test(err.message || '')) {
-          await channel.send('❌ This TikTok is too large to upload on Discord ' +
-            `(limit ${Math.round(DISCORD_MAX_BYTES / 1024 / 1024)} MB).`);
+          await sendTooLarge(channel, opts.caption, playUrl);
           return;
         }
         throw err;
