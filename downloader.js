@@ -26,9 +26,9 @@ function runYtDlp(args) {
 }
 
 // TikTok bot-checks the VPS IP and intermittently refuses the rehydration
-// data, so a single attempt often fails. Retry a few times with a short
-// backoff before giving up.
-const MAX_ATTEMPTS = 4;
+// data, so a single attempt often fails. Retry a couple times with a short
+// backoff before falling back to the third-party API.
+const MAX_ATTEMPTS = 2;
 const RETRY_DELAY_MS = 3000;
 
 async function downloadOnce(url, outTemplate) {
@@ -45,7 +45,7 @@ async function downloadOnce(url, outTemplate) {
 
   // A logged-in session's cookies defeat TikTok's bot-check on datacenter IPs.
   if (process.env.COOKIES_FILE) {
-    args.push('--cookies', process.env.COOKIES_FILE);
+    args.push('--cookies', process.env.COOKIES_FILE, '--no-cookies-to-file');
   }
 
   const stdout = await runYtDlp(args);
@@ -64,7 +64,7 @@ async function downloadOnce(url, outTemplate) {
   return filePath;
 }
 
-async function downloadTikTok(url) {
+async function downloadViaYtDlp(url) {
   const outTemplate = path.join(os.tmpdir(), `tiktok_${Date.now()}_%(id)s.%(ext)s`);
 
   let lastErr;
@@ -74,13 +74,43 @@ async function downloadTikTok(url) {
     } catch (err) {
       lastErr = err;
       if (attempt < MAX_ATTEMPTS) {
-        console.error(`Download attempt ${attempt} failed, retrying:`, err.message);
+        console.error(`yt-dlp attempt ${attempt} failed, retrying:`, err.message);
         await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
       }
     }
   }
 
   throw lastErr;
+}
+
+// Cookie-free fallback: a third-party TikTok API returns a direct (usually
+// no-watermark) video URL we download locally. Less reliable than yt-dlp and
+// an external dependency, but works without cookies or a clean IP.
+const TIKTOK_API_BASE = process.env.TIKTOK_API_BASE || 'https://www.tikwm.com/api/';
+
+async function downloadViaApi(url) {
+  const apiRes = await fetch(TIKTOK_API_BASE + '?url=' + encodeURIComponent(url));
+  if (!apiRes.ok) throw new Error(`API request failed: HTTP ${apiRes.status}`);
+  const json = await apiRes.json();
+  if (json.code !== 0 || !json.data || !json.data.play) {
+    throw new Error('third-party API returned no playable video');
+  }
+
+  const outPath = path.join(os.tmpdir(), `tiktok_api_${Date.now()}.mp4`);
+  const videoRes = await fetch(json.data.play);
+  if (!videoRes.ok) throw new Error(`video fetch failed: HTTP ${videoRes.status}`);
+  const buf = Buffer.from(await videoRes.arrayBuffer());
+  await fs.writeFile(outPath, buf);
+  return outPath;
+}
+
+async function downloadTikTok(url) {
+  try {
+    return await downloadViaYtDlp(url);
+  } catch (ytErr) {
+    console.error('yt-dlp exhausted, falling back to third-party API:', ytErr.message);
+    return await downloadViaApi(url);
+  }
 }
 
 module.exports = { downloadTikTok, MAX_VIDEO_BYTES, ytDlpCommand };
