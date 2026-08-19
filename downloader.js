@@ -1,4 +1,6 @@
 const fs = require('fs/promises');
+const { createWriteStream } = require('fs');
+const { Readable } = require('stream');
 const os = require('os');
 const path = require('path');
 
@@ -18,6 +20,23 @@ const TIKWM_HEADERS = {
 const MAX_ATTEMPTS = 2;
 const RETRY_DELAY_MS = 2000;
 
+async function streamVideo(videoUrl, outPath) {
+  const videoRes = await fetch(videoUrl, { headers: TIKWM_HEADERS });
+  if (!videoRes.ok) throw new Error(`video fetch failed: HTTP ${videoRes.status}`);
+
+  // Stream straight to disk instead of buffering the whole video in memory
+  // (large clips were spiking RAM/swap).
+  await new Promise((resolve, reject) => {
+    const out = createWriteStream(outPath);
+    const src = Readable.fromWeb(videoRes.body);
+    src.on('error', reject);
+    out.on('error', reject);
+    out.on('finish', resolve);
+    src.pipe(out);
+  });
+  return outPath;
+}
+
 async function downloadViaTikwm(url) {
   const apiRes = await fetch(
     TIKTOK_API_BASE + '?url=' + encodeURIComponent(url),
@@ -34,10 +53,7 @@ async function downloadViaTikwm(url) {
   if (!videoUrl) throw new Error('tikwm returned no playable video URL');
 
   const outPath = path.join(os.tmpdir(), `tiktok_${Date.now()}.mp4`);
-  const videoRes = await fetch(videoUrl, { headers: TIKWM_HEADERS });
-  if (!videoRes.ok) throw new Error(`video fetch failed: HTTP ${videoRes.status}`);
-  const buf = Buffer.from(await videoRes.arrayBuffer());
-  await fs.writeFile(outPath, buf);
+  await streamVideo(videoUrl, outPath);
   return outPath;
 }
 
