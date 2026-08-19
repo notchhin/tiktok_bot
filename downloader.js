@@ -32,7 +32,7 @@ const MAX_ATTEMPTS = 4;
 const RETRY_DELAY_MS = 3000;
 
 async function downloadOnce(url, outTemplate) {
-  const stdout = await runYtDlp([
+  const args = [
     url,
     '--no-playlist',
     '--no-warnings',
@@ -41,7 +41,14 @@ async function downloadOnce(url, outTemplate) {
     '-o', outTemplate,
     // Grab the clean (no-watermark) TikTok source when available.
     '--extractor-args', 'tiktok:download_without_watermark=1',
-  ]);
+  ];
+
+  // A logged-in session's cookies defeat TikTok's bot-check on datacenter IPs.
+  if (process.env.COOKIES_FILE) {
+    args.push('--cookies', process.env.COOKIES_FILE);
+  }
+
+  const stdout = await runYtDlp(args);
 
   const filePath = stdout.trim().split(/\r?\n/).pop();
   if (!filePath) {
