@@ -101,7 +101,7 @@ if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CHANNEL_ID) {
   const sendTooLarge = async (channel, caption, playUrl) => {
     const head = caption ? caption + '\n' : '';
     if (playUrl) {
-      await channel.send(head + '🔗 Too large for Discord — watch here: ' + playUrl);
+      await channel.send(head);
     } else {
       await channel.send(head + '❌ This TikTok is too large to upload on Discord ' +
         `(limit ${Math.round(DISCORD_MAX_BYTES / 1024 / 1024)} MB).`);
