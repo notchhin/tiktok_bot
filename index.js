@@ -108,10 +108,21 @@ if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CHANNEL_ID) {
           `(limit ${Math.round(DISCORD_MAX_BYTES / 1024 / 1024)} MB).`);
         return;
       }
-      await channel.send({
-        files: [{ attachment: file, name: 'tiktok.mp4' }],
-        content: opts.caption || '',
-      });
+      try {
+        await channel.send({
+          files: [{ attachment: file, name: 'tiktok.mp4' }],
+          content: opts.caption || '',
+        });
+      } catch (err) {
+        // Discord rejects oversized uploads with a bare 413; surface a clear
+        // message instead of an uncaught "Download failed".
+        if (/entity too large|413/i.test(err.message || '')) {
+          await channel.send('❌ This TikTok is too large to upload on Discord ' +
+            `(limit ${Math.round(DISCORD_MAX_BYTES / 1024 / 1024)} MB).`);
+          return;
+        }
+        throw err;
+      }
     },
   };
 
