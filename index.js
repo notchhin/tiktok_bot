@@ -29,11 +29,13 @@ bot.on('text', async (msg) => {
 
   const chatId = msg.chat.id;
   const status = await bot.sendMessage(chatId, '⏳ Downloading TikTok…');
+  // Remove the user's original TikTok link message up front.
+  await bot.deleteMessage(chatId, msg.message_id).catch(() => {});
 
   try {
     const file = await downloadTikTok(url);
     const { size } = await fs.stat(file);
-    const replyOpts = { caption: sender, reply_to_message_id: msg.message_id };
+    const replyOpts = { caption: sender };
 
     if (size > MAX_VIDEO_BYTES) {
       // Too big for sendVideo — send as a document instead (up to 2 GB).
@@ -51,8 +53,6 @@ bot.on('text', async (msg) => {
     await bot.sendMessage(chatId, '❌ Could not download that TikTok video.');
   } finally {
     await bot.deleteMessage(chatId, status.message_id).catch(() => {});
-    // Remove the user's original TikTok link message.
-    await bot.deleteMessage(chatId, msg.message_id).catch(() => {});
   }
 });
 
