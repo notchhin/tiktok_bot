@@ -83,21 +83,34 @@ async function downloadViaYtDlp(url) {
   throw lastErr;
 }
 
-// Cookie-free fallback: a third-party TikTok API returns a direct (usually
-// no-watermark) video URL we download locally. Less reliable than yt-dlp and
-// an external dependency, but works without cookies or a clean IP.
+// Cookie-free fallback: the tikwm API returns a direct (usually no-watermark)
+// video URL we download locally. Less reliable than yt-dlp and an external
+// dependency, but works without cookies or a clean IP.
+// Override with TIKTOK_API_BASE in .env only if you must point elsewhere.
 const TIKTOK_API_BASE = process.env.TIKTOK_API_BASE || 'https://www.tikwm.com/api/';
 
+const TIKWM_HEADERS = {
+  'User-Agent': 'Mozilla/5.0',
+  'Referer': 'https://www.tikwm.com/',
+};
+
 async function downloadViaApi(url) {
-  const apiRes = await fetch(TIKTOK_API_BASE + '?url=' + encodeURIComponent(url));
-  if (!apiRes.ok) throw new Error(`API request failed: HTTP ${apiRes.status}`);
+  const apiRes = await fetch(
+    TIKTOK_API_BASE + '?url=' + encodeURIComponent(url),
+    { headers: TIKWM_HEADERS }
+  );
+  if (!apiRes.ok) throw new Error(`tikwm request failed: HTTP ${apiRes.status}`);
   const json = await apiRes.json();
-  if (json.code !== 0 || !json.data || !json.data.play) {
-    throw new Error('third-party API returned no playable video');
+  if (json.code !== 0 || !json.data) {
+    throw new Error('tikwm returned no playable video: ' + (json.msg || json.code));
   }
 
+  // Prefer the no-watermark source, then HD, then the watermarked one.
+  const videoUrl = json.data.play || json.data.hdplay || json.data.wmplay;
+  if (!videoUrl) throw new Error('tikwm returned no playable video URL');
+
   const outPath = path.join(os.tmpdir(), `tiktok_api_${Date.now()}.mp4`);
-  const videoRes = await fetch(json.data.play);
+  const videoRes = await fetch(videoUrl, { headers: TIKWM_HEADERS });
   if (!videoRes.ok) throw new Error(`video fetch failed: HTTP ${videoRes.status}`);
   const buf = Buffer.from(await videoRes.arrayBuffer());
   await fs.writeFile(outPath, buf);
@@ -108,7 +121,7 @@ async function downloadTikTok(url) {
   try {
     return await downloadViaYtDlp(url);
   } catch (ytErr) {
-    console.error('yt-dlp exhausted, falling back to third-party API:', ytErr.message);
+    console.error('yt-dlp exhausted, falling back to tikwm:', ytErr.message);
     return await downloadViaApi(url);
   }
 }
