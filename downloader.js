@@ -25,9 +25,13 @@ function runYtDlp(args) {
   });
 }
 
-async function downloadTikTok(url) {
-  const outTemplate = path.join(os.tmpdir(), `tiktok_${Date.now()}_%(id)s.%(ext)s`);
+// TikTok bot-checks the VPS IP and intermittently refuses the rehydration
+// data, so a single attempt often fails. Retry a few times with a short
+// backoff before giving up.
+const MAX_ATTEMPTS = 4;
+const RETRY_DELAY_MS = 3000;
 
+async function downloadOnce(url, outTemplate) {
   const stdout = await runYtDlp([
     url,
     '--no-playlist',
@@ -51,6 +55,25 @@ async function downloadTikTok(url) {
   }
 
   return filePath;
+}
+
+async function downloadTikTok(url) {
+  const outTemplate = path.join(os.tmpdir(), `tiktok_${Date.now()}_%(id)s.%(ext)s`);
+
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await downloadOnce(url, outTemplate);
+    } catch (err) {
+      lastErr = err;
+      if (attempt < MAX_ATTEMPTS) {
+        console.error(`Download attempt ${attempt} failed, retrying:`, err.message);
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      }
+    }
+  }
+
+  throw lastErr;
 }
 
 module.exports = { downloadTikTok, MAX_VIDEO_BYTES, ytDlpCommand };
