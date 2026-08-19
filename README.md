@@ -20,13 +20,7 @@ in one specific channel (configured by `DISCORD_CHANNEL_ID`).
    ```
    Then edit `.env` and set `TELEGRAM_BOT_TOKEN`.
 
-4. Install `yt-dlp` and make sure it's on your PATH:
-   ```bash
-   pip install yt-dlp
-   ```
-   If you'd rather point at a specific binary, set `YTDLP_PATH` in `.env`.
-
-5. **Important — disable privacy mode** so the bot can read group messages:
+4. **Important — disable privacy mode** so the bot can read group messages:
    - In a chat with @BotFather, run `/setprivacy`
    - Select your bot, choose **Disable**
    - Without this, the bot only sees messages that mention it or are commands.
@@ -62,11 +56,8 @@ in one specific channel (configured by `DISCORD_CHANNEL_ID`).
    cp .env.example .env   # then edit and set TELEGRAM_BOT_TOKEN
    ```
 
-2. Install `yt-dlp` (standalone binary, always current) and Node if missing:
+2. Install Node if missing:
    ```bash
-   sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-     -o /usr/local/bin/yt-dlp
-   sudo chmod +x /usr/local/bin/yt-dlp
    sudo apt install -y nodejs npm   # or use NodeSource for a newer Node
    ```
 
@@ -90,17 +81,12 @@ in one specific channel (configured by `DISCORD_CHANNEL_ID`).
    ```
 
 To update later: pull/refresh the code, then `sudo systemctl restart tiktok-bot`.
-Keep yt-dlp fresh with `sudo yt-dlp -U`.
 
 ## Notes
 
-- `yt-dlp` does the downloading, so keep it updated: `pip install -U yt-dlp`.
-  TikTok changes its site often; an outdated yt-dlp is the usual cause of failures.
-- Videos up to 50 MB are sent as `sendVideo`. Larger ones are sent as a document
-  (Telegram's 2 GB limit) so they still get through.
-- If `yt-dlp` isn't on your PATH, set `YTDLP_PATH` in `.env` to the full path of
-  the binary.
-- **IP blocks:** TikTok frequently blocks datacenter/VPS IPs with
-  `Your IP address is blocked from accessing this post`. The bot can't fix that
-  from code — run it from a residential network, or route traffic through a proxy
-  by setting `HTTP_PROXY`/`HTTPS_PROXY` (yt-dlp reads these automatically).
+- Downloads go through the **tikwm** API, so no `yt-dlp` install is needed.
+- Videos up to 50 MB are sent as `sendVideo` (Telegram). Larger ones are sent as
+  a document (Telegram's 2 GB limit) so they still get through.
+- **IP blocks:** tikwm runs server-side, so your VPS IP isn't what TikTok sees for
+  the initial fetch. If tikwm returns errors, it's usually a TikTok-side region or
+  copyright restriction on that specific video rather than an IP block on you.
