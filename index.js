@@ -51,6 +51,8 @@ bot.on('text', async (msg) => {
     await bot.sendMessage(chatId, '❌ Could not download that TikTok video.');
   } finally {
     await bot.deleteMessage(chatId, status.message_id).catch(() => {});
+    // Remove the user's original TikTok link message.
+    await bot.deleteMessage(chatId, msg.message_id).catch(() => {});
   }
 });
 
