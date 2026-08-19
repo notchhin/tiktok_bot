@@ -1,5 +1,5 @@
 [Unit]
-Description=TikTok Telegram Bot
+Description=TikTok Bot (Telegram + Discord)
 After=network-online.target
 Wants=network-online.target
 
@@ -11,9 +11,7 @@ WorkingDirectory=/opt/tiktok-bot
 ExecStart=/usr/bin/node /opt/tiktok-bot/index.js
 Restart=always
 RestartSec=5
-# If yt-dlp isn't on PATH for this user, point at it explicitly:
-# Environment=YTDLP_PATH=/usr/local/bin/yt-dlp
-# Route TikTok through a proxy if the VPS IP gets blocked:
+# Route tikwm requests through a proxy if needed:
 # Environment=HTTPS_PROXY=http://user:pass@host:port
 
 [Install]
