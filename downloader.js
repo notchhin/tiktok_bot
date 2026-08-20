@@ -124,6 +124,7 @@ async function compressVideo(file, maxBytes) {
     if (size <= maxBytes) return out;
 
     await fs.unlink(out).catch(() => {});
+    console.error('compressVideo: compressed file still exceeds limit — falling back to direct URL.');
     return null;
   } catch {
     console.error('compressVideo: ffmpeg failed — falling back to direct URL.');
@@ -132,4 +133,15 @@ async function compressVideo(file, maxBytes) {
   }
 }
 
-module.exports = { downloadTikTok, compressVideo, MAX_VIDEO_BYTES };
+// Quick check used at startup so the bot can report whether on-the-fly
+// compression is actually available (e.g. ffmpeg on PATH for the service).
+async function ffmpegAvailable() {
+  try {
+    await execFileAsync('ffmpeg', ['-version']);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { downloadTikTok, compressVideo, ffmpegAvailable, MAX_VIDEO_BYTES };
