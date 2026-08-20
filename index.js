@@ -101,7 +101,10 @@ if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CHANNEL_ID) {
   const sendTooLarge = async (channel, caption, playUrl) => {
     const head = caption ? caption + '\n' : '';
     if (playUrl) {
-      await channel.send(head);
+      // Share the bare direct URL — Discord auto-embeds a direct video link
+      // as a playable video, which is the only way to surface a >25 MB clip.
+      // (The link has to stay a bare, clickable URL, or Discord won't embed it.)
+      await channel.send(head + playUrl);
     } else {
       await channel.send(head + '❌ This TikTok is too large to upload on Discord ' +
         `(limit ${Math.round(DISCORD_MAX_BYTES / 1024 / 1024)} MB).`);
