@@ -1,6 +1,6 @@
 require('dotenv').config();
 const fs = require('fs/promises');
-const { downloadTikTok, MAX_VIDEO_BYTES } = require('./downloader');
+const { downloadTikTok, compressVideo, MAX_VIDEO_BYTES } = require('./downloader');
 
 // Matches www / vm / vt / m subdomains and bare tiktok.com links.
 const TIKTOK_RE = /(?:https?:\/\/)?(?:www\.|vm\.|vt\.|m\.)?tiktok\.com[^\s)]+/i;
@@ -10,19 +10,6 @@ const FAIL_TEXT = '❌ Could not download that TikTok video.';
 
 function normalizeUrl(raw) {
   return raw.startsWith('http') ? raw : 'https://' + raw;
-}
-
-// No-key shortener so the (often huge) TikTok CDN URL doesn't flood the chat.
-// Discord follows the redirect to the .mp4 and still embeds the video.
-async function shortenUrl(longUrl) {
-  try {
-    const res = await fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(longUrl));
-    if (!res.ok) return longUrl;
-    const text = (await res.text()).trim();
-    return /^https?:\/\//i.test(text) ? text : longUrl;
-  } catch {
-    return longUrl;
-  }
 }
 
 // Platform-agnostic handler. `ctx` adapts each chat platform to a small,
@@ -114,11 +101,10 @@ if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CHANNEL_ID) {
   const sendTooLarge = async (channel, caption, playUrl) => {
     const head = caption ? caption + '\n' : '';
     if (playUrl) {
-      // Share a (shortened) bare direct URL — Discord auto-embeds a direct
-      // video link as a playable video, the only way to surface a >25 MB clip.
-      // The link has to stay a bare, clickable URL, or Discord won't embed it.
-      const url = await shortenUrl(playUrl);
-      await channel.send(head + url);
+      // Share the bare DIRECT mp4 URL — Discord only embeds a playable video
+      // when it can fetch the .mp4 itself, so shorteners/redirects won't work.
+      // The link stays a bare, clickable URL (required for the embed).
+      await channel.send(head + playUrl);
     } else {
       await channel.send(head + '❌ This TikTok is too large to upload on Discord ' +
         `(limit ${Math.round(DISCORD_MAX_BYTES / 1024 / 1024)} MB).`);
@@ -130,7 +116,17 @@ if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CHANNEL_ID) {
     deleteText: (msg) => msg.delete().catch(() => {}),
     deleteMessage: (msg) => msg.delete().catch(() => {}),
     replyFile: async (channel, file, opts, isLarge, playUrl) => {
-      const { size } = await fs.stat(file);
+      let { size } = await fs.stat(file);
+      // Over Discord's 25 MB cap: try to re-encode down to size so we can still
+      // upload a clean file; only fall back to the direct URL if that fails.
+      if (size > DISCORD_MAX_BYTES) {
+        const compressed = await compressVideo(file, DISCORD_MAX_BYTES);
+        if (compressed) {
+          await fs.unlink(file).catch(() => {});
+          file = compressed;
+          size = (await fs.stat(file)).size;
+        }
+      }
       if (size > DISCORD_MAX_BYTES) {
         await sendTooLarge(channel, opts.caption, playUrl);
         return;
