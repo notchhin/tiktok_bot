@@ -1,6 +1,6 @@
 require('dotenv').config();
 const fs = require('fs/promises');
-const { downloadTikTok, compressVideo, MAX_VIDEO_BYTES } = require('./downloader');
+const { downloadTikTok, compressVideo, ffmpegAvailable, MAX_VIDEO_BYTES } = require('./downloader');
 
 // Matches www / vm / vt / m subdomains and bare tiktok.com links.
 const TIKTOK_RE = /(?:https?:\/\/)?(?:www\.|vm\.|vt\.|m\.)?tiktok\.com[^\s)]+/i;
@@ -159,6 +159,14 @@ if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CHANNEL_ID) {
 
   client.on('error', (err) => console.error('Discord error:', err.message));
   client.login(process.env.DISCORD_BOT_TOKEN);
+
+  // Report compression readiness up front — if ffmpeg isn't on the service's
+  // PATH, large clips silently fall back to a direct link.
+  ffmpegAvailable().then((ok) =>
+    console.log(ok
+      ? '🎞️  ffmpeg available — large clips will be compressed to fit 25 MB.'
+      : '⚠️  ffmpeg NOT found — large clips will fall back to a direct link.')
+  );
   console.log('🤖 Discord bot is running…');
 }
 
