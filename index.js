@@ -12,6 +12,19 @@ function normalizeUrl(raw) {
   return raw.startsWith('http') ? raw : 'https://' + raw;
 }
 
+// No-key shortener so the (often huge) TikTok CDN URL doesn't flood the chat.
+// Discord follows the redirect to the .mp4 and still embeds the video.
+async function shortenUrl(longUrl) {
+  try {
+    const res = await fetch('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(longUrl));
+    if (!res.ok) return longUrl;
+    const text = (await res.text()).trim();
+    return /^https?:\/\//i.test(text) ? text : longUrl;
+  } catch {
+    return longUrl;
+  }
+}
+
 // Platform-agnostic handler. `ctx` adapts each chat platform to a small,
 // uniform interface so Telegram and Discord share the same download logic:
 //   sendText(channel, text)   -> returns a handle usable by deleteText
@@ -101,10 +114,11 @@ if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CHANNEL_ID) {
   const sendTooLarge = async (channel, caption, playUrl) => {
     const head = caption ? caption + '\n' : '';
     if (playUrl) {
-      // Share the bare direct URL — Discord auto-embeds a direct video link
-      // as a playable video, which is the only way to surface a >25 MB clip.
-      // (The link has to stay a bare, clickable URL, or Discord won't embed it.)
-      await channel.send(head + playUrl);
+      // Share a (shortened) bare direct URL — Discord auto-embeds a direct
+      // video link as a playable video, the only way to surface a >25 MB clip.
+      // The link has to stay a bare, clickable URL, or Discord won't embed it.
+      const url = await shortenUrl(playUrl);
+      await channel.send(head + url);
     } else {
       await channel.send(head + '❌ This TikTok is too large to upload on Discord ' +
         `(limit ${Math.round(DISCORD_MAX_BYTES / 1024 / 1024)} MB).`);
