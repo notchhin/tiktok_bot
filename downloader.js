@@ -94,7 +94,9 @@ async function compressVideo(file, maxBytes) {
     ]);
     duration = parseFloat(stdout.trim());
   } catch {
-    return null; // ffprobe/ffmpeg likely not installed
+    // ffprobe/ffmpeg likely not installed on this host.
+    console.error('compressVideo: ffprobe/ffmpeg unavailable — falling back to direct URL.');
+    return null;
   }
   if (!duration || !isFinite(duration)) return null;
 
@@ -124,6 +126,7 @@ async function compressVideo(file, maxBytes) {
     await fs.unlink(out).catch(() => {});
     return null;
   } catch {
+    console.error('compressVideo: ffmpeg failed — falling back to direct URL.');
     await fs.unlink(out).catch(() => {});
     return null;
   }
