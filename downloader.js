@@ -1,8 +1,12 @@
 const fs = require('fs/promises');
 const { createWriteStream } = require('fs');
 const { Readable } = require('stream');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const os = require('os');
 const path = require('path');
+
+const execFileAsync = promisify(execFile);
 
 // Telegram's sendVideo hard limit is 50 MB. Above that we fall back to sendDocument (2 GB).
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
@@ -75,4 +79,54 @@ async function downloadTikTok(url) {
   throw lastErr;
 }
 
-module.exports = { downloadTikTok, MAX_VIDEO_BYTES };
+// Re-encode a video to fit under `maxBytes` so Discord can receive it as a
+// normal upload (clean inline player, no expiry). Returns the new file path on
+// success, or null if ffmpeg is missing / the clip can't be compressed small
+// enough — callers then fall back to sharing the direct URL.
+async function compressVideo(file, maxBytes) {
+  let duration;
+  try {
+    const { stdout } = await execFileAsync('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=nw=1:nk=1',
+      file,
+    ]);
+    duration = parseFloat(stdout.trim());
+  } catch {
+    return null; // ffprobe/ffmpeg likely not installed
+  }
+  if (!duration || !isFinite(duration)) return null;
+
+  // Leave ~128 kbps for audio and 10% headroom for container/overhead.
+  const audioBps = 128 * 1024;
+  const videoBps = Math.max(
+    200000,
+    Math.floor((maxBytes * 0.9 * 8) / duration - audioBps)
+  );
+
+  const out = path.join(os.tmpdir(), `tiktok_c_${Date.now()}.mp4`);
+  try {
+    await execFileAsync('ffmpeg', [
+      '-y', '-i', file,
+      '-c:v', 'libx264', '-preset', 'veryfast',
+      '-b:v', String(videoBps),
+      '-maxrate', String(videoBps),
+      '-bufsize', String(videoBps * 2),
+      '-c:a', 'aac', '-b:a', '128k',
+      '-movflags', '+faststart',
+      out,
+    ], { timeout: 180000 });
+
+    const { size } = await fs.stat(out);
+    if (size <= maxBytes) return out;
+
+    await fs.unlink(out).catch(() => {});
+    return null;
+  } catch {
+    await fs.unlink(out).catch(() => {});
+    return null;
+  }
+}
+
+module.exports = { downloadTikTok, compressVideo, MAX_VIDEO_BYTES };
